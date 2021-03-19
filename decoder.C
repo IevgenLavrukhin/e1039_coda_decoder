@@ -143,6 +143,7 @@ int main(int argc, char* argv[])
     bool firstBOS = true;
     while(true)
     {
+      //  printf("!-------------------------------------------!\n");
         int status = coda->codaRead();
         if(status != 0)
         {
@@ -161,6 +162,7 @@ int main(int argc, char* argv[])
         data = coda->getEvBuffer();
         int eventType = data[1] >> 16;
         int nWordsTotal = data[0] + 1;
+
         if(eventType == 11 || eventType == 0x14) //BOS or normal end of run
         {
             //Run event check -- only when:
@@ -170,8 +172,8 @@ int main(int argc, char* argv[])
             //cout << "spillID = "<< spillID<< ", eosEventID = "<<eosEventID<<", bosEventID = "<<bosEventID<<endl;
             if(spillID > minSpillID && !firstBOS && !ARMdeadFlag && eosEventID > bosEventID)
             {
-				cout << "Spill " << spillID << "  BOS " << bosEventID << "  EOS " << eosEventID << "  targetPos " << targetPos << endl;
-                for(int i = 0; i < NROCs; ++i)  cout << rocs[RocIDs[i]].check() << endl;  //print basic info
+				       // cout << "Spill " << spillID << "  BOS " << bosEventID << "  EOS " << eosEventID << "  targetPos " << targetPos << endl;
+              //  for(int i = 0; i < NROCs; ++i)  cout << rocs[RocIDs[i]].check() << endl;  //print basic info
 
                 //dump data to tuple
                 unsigned int nEvents = rocs[RocIDs[0]].tdcs[0].events.size();
@@ -181,7 +183,7 @@ int main(int argc, char* argv[])
                     {
                         for(unsigned int iTDC = 0; iTDC < rocs[RocIDs[iRoc]].nTDCs; ++iTDC)
                         {
-			    if(iEvt >= rocs[RocIDs[iRoc]].tdcs[iTDC].events.size()) continue;
+			                      if(iEvt >= rocs[RocIDs[iRoc]].tdcs[iTDC].events.size()) continue;
                             Event thisEvent = rocs[RocIDs[iRoc]].tdcs[iTDC].events[iEvt];
                             for(unsigned int iHit = 0; iHit < thisEvent.tdcTimes.size(); ++iHit)
                             {
@@ -190,15 +192,17 @@ int main(int argc, char* argv[])
                                 eventID = thisEvent.eventID;
                                 channelID = thisEvent.channels[iHit];
                                 tdcTime = thisEvent.tdcTimes[iHit];
-								eventTy = eventTys[iEvt]; //	
+								                eventTy = eventTys[iEvt]; //
                                 saveTree->Fill();
+
+                              //  printf("roc =%i, bord = %i, eventID = %i,  eventTY = %i \n", rocID, boardID, eventID, eventTy);
                             }
                         }
                     }
                 }
 
                 targetPos = 0;
-				eventTys.clear();
+				        eventTys.clear();
             }
             firstBOS = false;
 
@@ -223,6 +227,70 @@ int main(int argc, char* argv[])
             {
                 break;
             }
+        }
+        else if(eventType == 14){ //v1495 TDC data from FGPA trigger Roc15 => Roc25 here
+//          printf("eventType == 14 => Size = %i \n", nWordsTotal);
+
+          int tdc_id = -1;
+          unsigned int ts_event_ID = -1;
+          unsigned int triggerType = -1;
+          int n_word = 0;
+
+          while (n_word < nWordsTotal){
+            if(data[n_word] == 0x13378eef){
+              tdc_id++;
+
+              unsigned int b_ID = data[++n_word];
+              unsigned int time_window = data[++n_word];
+              unsigned int n_hits = data[++n_word] & 0xffff;
+              unsigned int commot_stop = data[++n_word] & 0xfff;
+
+              for (int i = 0; i<n_hits; i++){     //loop over TDC hits:
+                unsigned int tdc_word = data[++n_word];
+                unsigned int tdc_ch = (tdc_word & 0xff00) >> 8;
+                unsigned int tdc_time = commot_stop - (tdc_word & 0xff);
+
+//              if(tdc_ch > 95)
+//              printf("tdc id = %i => board ID = 0x%x; total # hits = %i => hit = %i ch = %i tdc = %i \n", tdc_id, b_ID, n_hits, i, tdc_ch, tdc_time);
+//               printf("ts_event_ID = %i, triggerTipe = %i \n",ts_event_ID, triggerType);
+
+              //fill the free:
+                if(triggerType > 0 && ts_event_ID > 0){
+                    rocID = 25; //RocIDs[iRoc];
+                    boardID = tdc_id;
+                    eventID = ts_event_ID;
+                    channelID = tdc_ch;
+                    tdcTime = (double) tdc_time*18.86/16.0; // need to conver it properly
+                    eventTy = triggerType; //
+                    saveTree->Fill();
+                }
+
+
+            } //end for loop
+            n_word ++;
+
+            }
+            else if (data[n_word]==0xe906f00f){
+               ts_event_ID = data[++n_word];
+               triggerType = data[++n_word];
+               n_word ++;
+//               printf("ts_event_ID = %i, triggerTipe = %i \n",ts_event_ID, triggerType);
+
+            }else{  //all other words are skipped ?
+                n_word ++;
+
+            }
+
+          }  //end while loop
+
+/*
+          for(int i = 0; i<nWordsTotal; i++){
+             printf("i = %i => data = 0x%x \n ", i,data[i]);
+          }
+          printf("!------------------------------!\n");
+*/
+          continue;
+
         }
         else if(eventType == 129)   //spill counter
         {
@@ -295,7 +363,7 @@ int main(int argc, char* argv[])
             while(iWord < maxRocWordID)
             {
                 if(data[iWord] == 0xe906f00f) //trigger type from TS
-                {  
+                {
                     ++iWord;
 					unsigned int nEvents=0;
 					if (data[iWord]>0x00000000){
