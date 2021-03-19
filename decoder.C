@@ -85,6 +85,7 @@ unsigned int RocIDs[NROCs] = {12, 13, 14, 15, 17, 18, 19, 21, 22, 23, 25, 26, 28
 unsigned int NTDCs[NROCs]  = {6,  3,  5,  6,  7,  7,  6,  6,  6,  7,  0,  7,  5,  7,  5 };
 //unsigned int NTDCs[NROCs]  = {1};
 
+
 int main(int argc, char* argv[])
 {
     THaCodaData* coda = new THaCodaFile(TString(argv[1]));
@@ -139,11 +140,18 @@ int main(int argc, char* argv[])
     int eosEventID = 0;
     int minSpillID = -1;
 
+
+    int event_counter = 0;
+
     unsigned int* data;
     bool firstBOS = true;
     while(true)
     {
-      //  printf("!-------------------------------------------!\n");
+        event_counter ++;
+        if(event_counter%100000 == 0){
+            printf("Processing Event # : %i\n", event_counter);
+        }
+
         int status = coda->codaRead();
         if(status != 0)
         {
@@ -232,9 +240,10 @@ int main(int argc, char* argv[])
 //          printf("eventType == 14 => Size = %i \n", nWordsTotal);
 
           int tdc_id = -1;
-          unsigned int ts_event_ID = -1;
-          unsigned int triggerType = -1;
+          int ts_event_ID = -1;
+          int triggerType = -1;
           int n_word = 0;
+
 
           while (n_word < nWordsTotal){
             if(data[n_word] == 0x13378eef){
@@ -245,14 +254,21 @@ int main(int argc, char* argv[])
               unsigned int n_hits = data[++n_word] & 0xffff;
               unsigned int commot_stop = data[++n_word] & 0xfff;
 
+
+              if(n_hits == 0xd1ad || commot_stop == 0xd2ad){ //if TDC srewed up readout it sends a garbage. Need to check it.
+                n_hits  = 0;
+                commot_stop = 0;
+              }
+
               for (int i = 0; i<n_hits; i++){     //loop over TDC hits:
                 unsigned int tdc_word = data[++n_word];
-                unsigned int tdc_ch = (tdc_word & 0xff00) >> 8;
+                int tdc_ch = (int) (tdc_word & 0xff00) >> 8;
                 unsigned int tdc_time = commot_stop - (tdc_word & 0xff);
 
-//              if(tdc_ch > 95)
-//              printf("tdc id = %i => board ID = 0x%x; total # hits = %i => hit = %i ch = %i tdc = %i \n", tdc_id, b_ID, n_hits, i, tdc_ch, tdc_time);
-//               printf("ts_event_ID = %i, triggerTipe = %i \n",ts_event_ID, triggerType);
+                if(tdc_ch > 95){
+                  printf("tdc id = %i => board ID = 0x%x; total # hits = %i => hit = %i ch = %i tdc = %i \n", tdc_id, b_ID, n_hits, i, tdc_ch, tdc_time);
+                  printf("ts_event_ID = %i, triggerTipe = %i \n",ts_event_ID, triggerType);
+                }
 
               //fill the free:
                 if(triggerType > 0 && ts_event_ID > 0){
@@ -265,14 +281,13 @@ int main(int argc, char* argv[])
                     saveTree->Fill();
                 }
 
-
             } //end for loop
             n_word ++;
 
             }
             else if (data[n_word]==0xe906f00f){
-               ts_event_ID = data[++n_word];
-               triggerType = data[++n_word];
+               ts_event_ID = (int) data[++n_word];
+               triggerType = (int)data[++n_word];
                n_word ++;
 //               printf("ts_event_ID = %i, triggerTipe = %i \n",ts_event_ID, triggerType);
 
@@ -283,12 +298,7 @@ int main(int argc, char* argv[])
 
           }  //end while loop
 
-/*
-          for(int i = 0; i<nWordsTotal; i++){
-             printf("i = %i => data = 0x%x \n ", i,data[i]);
-          }
-          printf("!------------------------------!\n");
-*/
+
           continue;
 
         }
