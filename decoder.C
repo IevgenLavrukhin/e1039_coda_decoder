@@ -242,9 +242,11 @@ int main(int argc, char* argv[])
           int tdc_id = -1;
           int ts_event_ID = -1;
           int triggerType = -1;
-          int n_word = 0;
+          int n_word = 7;
 
+        //  cout << "Spill " << spillID << "  BOS " << bosEventID << "  EOS " << eosEventID  << endl;
 
+          if(spillID > minSpillID)
           while (n_word < nWordsTotal){
             if(data[n_word] == 0x13378eef){
               tdc_id++;
@@ -276,7 +278,7 @@ int main(int argc, char* argv[])
                     boardID = tdc_id;
                     eventID = ts_event_ID;
                     channelID = tdc_ch;
-                    tdcTime = (double) tdc_time*18.86/16.0; // need to conver it properly
+                    tdcTime = (double) tdc_time;//*18.86/16.0; // need to conver it properly
                     eventTy = triggerType; //
                     saveTree->Fill();
                 }
@@ -289,7 +291,7 @@ int main(int argc, char* argv[])
                ts_event_ID = (int) data[++n_word];
                triggerType = (int)data[++n_word];
                n_word ++;
-//               printf("ts_event_ID = %i, triggerTipe = %i \n",ts_event_ID, triggerType);
+              // printf("ts_event_ID = %i, triggerTipe = %i \n",ts_event_ID, triggerType);
 
             }else{  //all other words are skipped ?
                 n_word ++;
@@ -298,6 +300,7 @@ int main(int argc, char* argv[])
 
           }  //end while loop
 
+          ++codaEventID;
 
           continue;
 
@@ -344,7 +347,7 @@ int main(int argc, char* argv[])
             ++codaEventID;
             continue;
         }
-        else if(eventType == 12 || eventType == 17 || eventType == 18 || eventType == 132 || eventType == 130 || eventType == 140 || eventType == 14)
+        else if(eventType == 12 || eventType == 17 || eventType == 18 || eventType == 132 || eventType == 130 || eventType == 140)
         {
             if(eventType == 12) eosEventID = codaEventID;
 
