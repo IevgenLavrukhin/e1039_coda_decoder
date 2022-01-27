@@ -40,7 +40,7 @@ CXXFLAGS      = -Wall -Wno-narrowing -std=c++11 -fno-rtti -fPIC \
    # Linux with egcs
 INCLUDES      = -I$(ROOTSYS)/include
 CXX           = g++
-CXXFLAGS      = -O -Wall -Wno-narrowing -std=c++11 -fPIC $(INCLUDES)
+CXXFLAGS      = -O3 -g  -Wall -Wno-narrowing -std=c++11 -fPIC $(INCLUDES)
 LD            = g++
 LDFLAGS       =
 SOFLAGS       = -shared

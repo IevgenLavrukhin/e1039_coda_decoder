@@ -13,6 +13,7 @@
 #include <TCanvas.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <TObjString.h>
 
 #include <map>
 #include <vector>
@@ -31,7 +32,10 @@ public:
     Event();
     void setEventID(int codaEventID, int eventID);
     void addHit(unsigned int hit);
+    void addV1495Hit(std::vector <unsigned int> tdc_word, unsigned int common_stop);
+
     void setHeader(unsigned int header);
+    void setV1495Header(unsigned int stop_time, unsigned int n_events);
 
     void fillInfo(unsigned int word, double triggerTime, int& channelID, double& tdcTime);
     double decodeTime(unsigned int word);
@@ -57,7 +61,9 @@ public:
 
     void finalizeEvent(int codaEventID, int eventID);
     void fillHeader(unsigned int header);
+    void fillV1495Header(unsigned int stop_time, unsigned int n_events);
     void fillHit(unsigned int hit);
+    void fillV1495Hit(std::vector <unsigned int> tdc_word, unsigned int common_stop);
 
 public:
     int boardID;
@@ -79,11 +85,29 @@ public:
 
 //===========================================================================================
 const int NROCs = 15;
+
+const int nV1495_Boards = 5;
+
 //const int NROCs = 1;
 unsigned int RocIDs[NROCs] = {12, 13, 14, 15, 17, 18, 19, 21, 22, 23, 25, 26, 28, 30, 31};
 //unsigned int RocIDs[NROCs] = {6};
-unsigned int NTDCs[NROCs]  = {6,  3,  5,  6,  7,  7,  6,  6,  6,  7,  0,  7,  5,  7,  5 };
+unsigned int NTDCs[NROCs]  = {6,  3,  5,  6,  7,  7,  6,  6,  6,  7,  nV1495_Boards,  7,  5,  7,  5 };
 //unsigned int NTDCs[NROCs]  = {1};
+
+// TDC mapper for v1495 TDCs:
+unsigned int v1495_Board_ID[nV1495_Boards] = {0x0420, 0x0430, 0x0460, 0x0470, 0x480}; //L0_T, L0_B, L1_T, L1_B, L2
+
+
+int get_v1495_number(unsigned int firmware_ID){
+  for(int i=0; i<nV1495_Boards; i++){
+    if(firmware_ID == v1495_Board_ID[i])
+        return i;
+  }
+
+  return -1;
+}
+
+
 
 
 int main(int argc, char* argv[])
@@ -94,8 +118,8 @@ int main(int argc, char* argv[])
     map<int, ROC> rocs;
     map<int, bool> ARMdead;
     bool ARMdeadFlag = false;
- 	vector<int> eventTys;
- 	for(int i = 0; i < NROCs; ++i)
+ 	  vector<int> eventTys;
+ 	  for(int i = 0; i < NROCs; ++i)
     {
         ROC newROC;
 
@@ -192,7 +216,11 @@ int main(int argc, char* argv[])
                         for(unsigned int iTDC = 0; iTDC < rocs[RocIDs[iRoc]].nTDCs; ++iTDC)
                         {
 			                      if(iEvt >= rocs[RocIDs[iRoc]].tdcs[iTDC].events.size()) continue;
+
                             Event thisEvent = rocs[RocIDs[iRoc]].tdcs[iTDC].events[iEvt];
+
+                            //printf("\n\n\n\n\n ROC = %i: nHits = %i, TDC = %i \n\n\n\n", RocIDs[iRoc], thisEvent.tdcTimes.size(), iTDC);
+
                             for(unsigned int iHit = 0; iHit < thisEvent.tdcTimes.size(); ++iHit)
                             {
                                 rocID = RocIDs[iRoc];
@@ -268,19 +296,19 @@ int main(int argc, char* argv[])
                 unsigned int tdc_time = commot_stop - (tdc_word & 0xff);
 
                 if(tdc_ch > 95){
-                  printf("tdc id = %i => board ID = 0x%x; total # hits = %i => hit = %i ch = %i tdc = %i \n", tdc_id, b_ID, n_hits, i, tdc_ch, tdc_time);
-                  printf("ts_event_ID = %i, triggerTipe = %i \n",ts_event_ID, triggerType);
+                //  printf("tdc id = %i => board ID = 0x%x; total # hits = %i => hit = %i ch = %i tdc = %i \n", tdc_id, b_ID, n_hits, i, tdc_ch, tdc_time);
+                //  printf("ts_event_ID = %i, triggerTipe = %i \n",ts_event_ID, triggerType);
                 }
 
               //fill the free:
                 if(triggerType > 0 && ts_event_ID > 0){
                     rocID = 25; //RocIDs[iRoc];
-                    boardID = tdc_id;
-                    eventID = ts_event_ID;
-                    channelID = tdc_ch;
-                    tdcTime = (double) tdc_time;//*18.86/16.0; // need to conver it properly
-                    eventTy = triggerType; //
-                    saveTree->Fill();
+              //      boardID = tdc_id;
+              //      eventID = ts_event_ID;
+              //      channelID = tdc_ch;
+              //      tdcTime = (double) tdc_time;//*18.86/16.0; // need to conver it properly
+              //      eventTy = triggerType; //
+              //      saveTree->Fill();
                 }
 
             } //end for loop
@@ -355,7 +383,18 @@ int main(int argc, char* argv[])
             continue;
         }
         if(spillID <= minSpillID) continue;
-         //cout << " codaEventID = " << codaEventID << ", nWords = " << nWordsTotal << " " << eventType << endl;
+         cout << " codaEventID = " << codaEventID << ", nWords = " << nWordsTotal << " " << eventType << endl;
+
+         /*
+         if(eventType ==10){
+           for(int i=0; i<nWordsTotal; i++){
+              if(i%10==0) printf("\n");
+             printf("0x%x\t", data[i]);
+
+           }
+         }
+
+         */
 
         int iWord = 7;
         while(iWord < nWordsTotal)
@@ -366,10 +405,8 @@ int main(int argc, char* argv[])
             int rocID = (data[iWord++] & 0x00ff0000) >> 16;
             //cout << "RocID = " << dec << rocID << ", nWordsRoc = " << dec << nWordsRoc << endl;
             if(rocID == 25)// || rocID == 30)// || rocID == 2)
-            //if(rocID != 2 && (rocID != 14))
             {
-                iWord = maxRocWordID;
-                continue;
+                //cout << "RocID = " << dec << rocID << ", nWordsRoc = " << dec << nWordsRoc << endl;
             }
 
             ++iWord; ++iWord; ++iWord; //neglect the first 3 words
@@ -378,21 +415,97 @@ int main(int argc, char* argv[])
                 if(data[iWord] == 0xe906f00f) //trigger type from TS
                 {
                     ++iWord;
-					unsigned int nEvents=0;
-					if (data[iWord]>0x00000000){
-						nEvents=(data[iWord]-1)/2;
-						//cout<<nEvents<<endl;
-						}
+					          unsigned int nEvents=0;
+					          if (data[iWord]>0x00000000){
+						             nEvents=(data[iWord]-1)/2;
+						             //cout<<nEvents<<endl;
+						        }
                     ++iWord;
-					for (unsigned int i=0; i<nEvents; i++){
-						eventTys.push_back(data[iWord]);
-                    	//cout<<data[iWord]<<" "<<data[iWord+1]<<endl;
-						++iWord;
-                    	++iWord;
-					}
+					          for (unsigned int i=0; i<nEvents; i++){
+						            eventTys.push_back(data[iWord]);
+                    	  //cout<<data[iWord]<<" "<<data[iWord+1]<<endl;
+						            ++iWord;
+                      	++iWord;
+					          }
                     //cout << data[iWord++] << "  " << data[iWord++] << endl;
                     //++iWord; ++iWord; //not needed for data check
                 	iWord = maxRocWordID;
+                }
+                else if(data[iWord] == 0xe906f005) // V1495 TRigger TDC readout!!!!!
+                {
+                    unsigned int v1495_TDC_ID = data[++iWord]; //first word is TDC ID of the board
+                    unsigned int n_v1495_TDC_words = data[++iWord]; //second word is number of word
+
+                    int v1495_board_num = get_v1495_number(v1495_TDC_ID);
+
+                    if(n_v1495_TDC_words != 0){
+                    //  printf("EventTY: %i;\t V1495 TDC bank started for 0x%x => board number = %i =>  number of words = %i\n", \
+                                          eventType, v1495_TDC_ID, v1495_board_num, n_v1495_TDC_words);
+
+
+                      std::vector <unsigned int> v1495_hits;
+
+                      int v1495extraWords=0; // this is needed to take into account 2 extra words per physics event (stop time & codaID)
+                      int i=0;
+
+                      std::vector<unsigned int> v1495_tdc;
+
+                      while (i< n_v1495_TDC_words+v1495extraWords){ //up to 6 events per readout  & 2 extra words stop time & coda event ID
+                        ++iWord;
+
+                        //printf("data[%i] = 0x%x \n",i, data[iWord]);
+
+                        if(data[iWord]>>16 == 0){
+                        //  printf("TDC data[%i] = 0x%x \n",i, data[iWord]);
+                          v1495_tdc.emplace_back(data[iWord]);
+                        }
+
+                        if(data[iWord]>>28 == 1) //TDC header separates events 0x1000XXXX format
+                        {
+                          unsigned int v1495_header = data[iWord];
+                          //printf("TDC header: 0x%x \n", v1495_header);
+                          unsigned int t_stop = data[++iWord] & 0xfff;//stop time
+                          int v1495_eventID_coda = data[++iWord];//physics event ID recorded from CODA
+
+                          int v1495_eventID_HIGH = data[++iWord];
+                          int v1495_eventID_LOW = data[++iWord];
+
+                          //printf("STOP Time = 0x%x => Event ID Coda = 0x%x, from DC HIGH = 0x%x LOW = 0x%x \n",  t_stop, v1495_eventID_coda,v1495_eventID_HIGH, v1495_eventID_LOW );
+                          // this doesn't work yet. for codaID = 0x0 it decoes 0x7fff 0xffff for high and low
+                          // will skip for now and will use coda event ID for analysis;
+                          /*
+                          int v1495_eventID = (v1495_eventID_HIGH <<15) + v1495_eventID_LOW; ////physics event ID recorded by Memory card;
+                          std::cout << v1495_eventID_HIGH<<15 << "\t "<< v1495_eventID_LOW << "\t" << v1495_eventID << "\n";
+                          */
+
+                          //once we got a stop time, we can decode TDC hits:
+                          //printf("v1495_board_num = %i \n", v1495_board_num);
+                          if(t_stop != 0x2ad){
+                            rocs[rocID].tdcs[v1495_board_num].finalizeEvent(codaEventID, v1495_eventID_coda);
+                            rocs[rocID].tdcs[v1495_board_num].fillV1495Header(t_stop, 0x0);//0x0 should be replaced with something.
+                            rocs[rocID].tdcs[v1495_board_num].fillV1495Hit(v1495_tdc, t_stop);
+                          }
+
+
+/*
+                          for(size_t j=0; j<v1495_tdc.size();j++){
+                            printf("0x%x \t",v1495_tdc[j]);
+
+                          }
+                          printf("\n");
+*/
+                          v1495_tdc.clear(); //clear tdc hit vector for every new event in the buffer;
+
+                          v1495extraWords = v1495extraWords + 2;
+                          i=i+4;
+
+                        }
+
+                        i++;
+                      }
+                    }
+
+
                 }
                 else if(data[iWord] == 0xe906f018 || data[iWord] == 0xe906f01b) //TW-TDC or QIE
                 {
@@ -498,11 +611,32 @@ void Event::addHit(unsigned int hit)
     tdcTimes.push_back(tdcTime);
 }
 
+// Added a decoder for V1495 TDC Events=> Ievgen 08/23/2021
+void Event::addV1495Hit(std::vector <unsigned int> tdc_word, unsigned int common_stop){
+
+    for(size_t i=0; i< tdc_word.size(); i++){
+
+      int tdc_ch = (int) (tdc_word[i] & 0xff00) >> 8;
+      double tdc_time = (double) common_stop - (tdc_word[i] & 0xff);
+
+      channels.push_back(tdc_ch);
+      tdcTimes.push_back(tdc_time);
+    }
+}
+
+
 void Event::setHeader(unsigned int header)
 {
     triggerTime = decodeTime(header);
     nEntriesExp = ((header & 0x0ff00000) >> 20) - 1;
 }
+
+void Event::setV1495Header(unsigned int stop_time, unsigned int n_events)
+{
+    triggerTime = stop_time;
+    nEntriesExp = n_events;
+}
+
 
 void Event::fillInfo(unsigned int word, double triggerTime, int& channelID, double& tdcTime)
 {
@@ -546,10 +680,21 @@ void TDC::fillHeader(unsigned int header)
     events.back().setHeader(header);
 }
 
+void TDC::fillV1495Header(unsigned int stop_time, unsigned int n_events){
+    events.back().setV1495Header(stop_time, n_events);
+}
+
+
 void TDC::fillHit(unsigned int hit)
 {
     events.back().addHit(hit);
 }
+
+void TDC::fillV1495Hit(std::vector <unsigned int> tdc_word, unsigned int common_stop)
+{
+    events.back().addV1495Hit(tdc_word, common_stop);
+}
+
 
 TString TDC::check()
 {
