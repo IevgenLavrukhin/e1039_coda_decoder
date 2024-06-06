@@ -95,7 +95,7 @@ unsigned int NTDCs[NROCs]  = {6,  3,  5,  6,  7,  7,  6,  6,  6,  7,  nV1495_Boa
 //unsigned int NTDCs[NROCs]  = {1};
 
 // TDC mapper for v1495 TDCs:
-unsigned int v1495_Board_ID[nV1495_Boards] = {0x0420, 0x0430, 0x0460, 0x0470, 0x480}; //L0_T, L0_B, L1_T, L1_B, L2
+unsigned int v1495_Board_ID[nV1495_Boards] = {0xa000, 0xa000, 0xb001, 0xb101, 0xc001}; //L0_T, L0_B, L1_T, L1_B, L2
 
 
 int get_v1495_number(unsigned int firmware_ID){
@@ -194,6 +194,20 @@ int main(int argc, char* argv[])
         data = coda->getEvBuffer();
         int eventType = data[1] >> 16;
         int nWordsTotal = data[0] + 1;
+
+/*
+        if(eventType == 11){
+          printf("\n --------------- Event 11 => N words = %i -----------\n", nWordsTotal);
+          for(int i=0; i<nWordsTotal; i++ ){
+            if(i%10 == 0) printf("\n ", i);
+            printf("\t 0x%x", data[i]);
+          }
+
+
+        }else if(eventType == 14){
+          //printf("--------------- Event 14 => N words = %i -----------\n", nWordsTotal);
+        }
+*/
 
         if(eventType == 11 || eventType == 0x14) //BOS or normal end of run
         {
@@ -383,7 +397,7 @@ int main(int argc, char* argv[])
             continue;
         }
         if(spillID <= minSpillID) continue;
-         cout << " codaEventID = " << codaEventID << ", nWords = " << nWordsTotal << " " << eventType << endl;
+        // cout << " codaEventID = " << codaEventID << ", nWords = " << nWordsTotal << " " << eventType << endl;
 
          /*
          if(eventType ==10){
@@ -404,11 +418,20 @@ int main(int argc, char* argv[])
             int maxRocWordID = iWord + nWordsRoc;
             int rocID = (data[iWord++] & 0x00ff0000) >> 16;
             //cout << "RocID = " << dec << rocID << ", nWordsRoc = " << dec << nWordsRoc << endl;
-            if(rocID == 25)// || rocID == 30)// || rocID == 2)
+    /*        if(rocID == 25 && nWordsRoc > 14)// || rocID == 30)// || rocID == 2)
             {
-                //cout << "RocID = " << dec << rocID << ", nWordsRoc = " << dec << nWordsRoc << endl;
-            }
+                printf("---------------------Event Type = %i ----------------\n", eventType);
+                cout << "RocID = " << dec << rocID << ", nWordsRoc = " << dec << nWordsRoc << endl;
 
+                for(int i=iWord; i<iWord +nWordsRoc+1; i++ ){
+                  if((i -iWord)%10 == 0) printf("\n %i | ", i-iWord);
+                  printf("\t0x%x", data[i]);
+                }
+                printf("\n");
+
+
+            }
+*/
             ++iWord; ++iWord; ++iWord; //neglect the first 3 words
             while(iWord < maxRocWordID)
             {
@@ -464,7 +487,16 @@ int main(int argc, char* argv[])
                         {
                           unsigned int v1495_header = data[iWord];
                           //printf("TDC header: 0x%x \n", v1495_header);
-                          unsigned int t_stop = data[++iWord] & 0xfff;//stop time
+                          unsigned int t_stop = data[++iWord];// & 0xfff;//stop time
+                          if(t_stop >>12  == 0x0){
+                            printf(" \t\t Wrong HEADER WORD:\n");
+                                printf("Event Counter = %i => t_stop = 0x%x \n",event_counter,  t_stop);
+                          }
+
+
+
+
+                          t_stop = t_stop & 0xfff;
                           int v1495_eventID_coda = data[++iWord];//physics event ID recorded from CODA
 
                           int v1495_eventID_HIGH = data[++iWord];
