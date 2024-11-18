@@ -95,7 +95,7 @@ unsigned int NTDCs[NROCs]  = {6,  3,  5,  6,  7,  7,  6,  6,  6,  7,  nV1495_Boa
 //unsigned int NTDCs[NROCs]  = {1};
 
 // TDC mapper for v1495 TDCs:
-unsigned int v1495_Board_ID[nV1495_Boards] = {0xa000, 0xa000, 0xb001, 0xb101, 0xc001}; //L0_T, L0_B, L1_T, L1_B, L2
+unsigned int v1495_Board_ID[nV1495_Boards] = {0x400, 0x410, 0x420, 0x430, 0x440}; //L0_T, L0_B, L1_T, L1_B, L2
 
 
 int get_v1495_number(unsigned int firmware_ID){
